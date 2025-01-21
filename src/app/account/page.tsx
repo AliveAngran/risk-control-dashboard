@@ -174,7 +174,7 @@ const AccountPage = () => {
       children: (
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <Space>
-            <Button icon={<SearchOutlined />}>刷新</Button>
+            <Button icon={<SearchOutlined />}>搜索账户</Button>
             <Button icon={<DownloadOutlined />}>导出</Button>
           </Space>
           <Table

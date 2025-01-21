@@ -11,6 +11,7 @@ const { Option } = Select;
 
 interface OrderData {
   id: number;
+  uid: string;
   symbol: string;
   exchange: 'Binance' | 'Other';
   side: 'BUY' | 'SELL';
@@ -39,13 +40,23 @@ const TradePage = () => {
   const [activeTab, setActiveTab] = useState('current');
   const [loading, setLoading] = useState(true);
   const [orderData, setOrderData] = useState<OrderData[]>([]);
-  const [selectedSymbol, setSelectedSymbol] = useState<string>('BTCUSDT');
+  const [selectedSymbol, setSelectedSymbol] = useState<string>('ALL');
+  const [selectedUid, setSelectedUid] = useState<string>('ALL');
   const [form] = Form.useForm();
 
   // 交易对选项
   const symbolOptions = [
+    { label: '全部交易对', value: 'ALL' },
     { label: 'BTC/USDT', value: 'BTCUSDT' },
     { label: 'ETH/USDT', value: 'ETHUSDT' },
+  ];
+
+  // UID选项
+  const uidOptions = [
+    { label: '全部账户', value: 'ALL' },
+    { label: 'UID: 123456', value: '123456' },
+    { label: 'UID: 234567', value: '234567' },
+    { label: 'UID: 345678', value: '345678' },
   ];
 
   // 订单类型选项
@@ -61,6 +72,13 @@ const TradePage = () => {
 
   // 当前订单列配置
   const orderColumns: ColumnsType<OrderData> = [
+    {
+      title: 'UID',
+      dataIndex: 'uid',
+      key: 'uid',
+      fixed: 'left',
+      width: 120,
+    },
     {
       title: '交易所',
       dataIndex: 'exchange',
@@ -161,6 +179,7 @@ const TradePage = () => {
   const mockOrderData: OrderData[] = [
     {
       id: 123456,
+      uid: '123456',
       symbol: 'BTCUSDT',
       exchange: 'Binance',
       side: 'BUY',
@@ -177,6 +196,7 @@ const TradePage = () => {
     },
     {
       id: 123457,
+      uid: '123456',
       symbol: 'ETHUSDT',
       exchange: 'Binance',
       side: 'SELL',
@@ -193,6 +213,7 @@ const TradePage = () => {
     },
     {
       id: 123458,
+      uid: '234567',
       symbol: 'BTCUSDT',
       exchange: 'Other',
       side: 'SELL',
@@ -209,6 +230,7 @@ const TradePage = () => {
     },
     {
       id: 123459,
+      uid: '345678',
       symbol: 'ETHUSDT',
       exchange: 'Other',
       side: 'BUY',
@@ -234,10 +256,12 @@ const TradePage = () => {
       
       setLoading(true);
       
-      // 使用选择的交易对过滤数据
-      const filteredData = mockOrderData.filter(item => 
-        selectedSymbol === 'ALL' || item.symbol === selectedSymbol
-      );
+      // 使用选择的交易对和UID过滤数据
+      const filteredData = mockOrderData.filter(item => {
+        const matchSymbol = selectedSymbol === 'ALL' || item.symbol === selectedSymbol;
+        const matchUid = selectedUid === 'ALL' || item.uid === selectedUid;
+        return matchSymbol && matchUid;
+      });
 
       setOrderData(filteredData);
       
@@ -255,12 +279,17 @@ const TradePage = () => {
       isMounted = false;
       clearInterval(timer);
     };
-  }, [selectedSymbol]);
+  }, [selectedSymbol, selectedUid]);
 
   // 处理交易对选择
   const handleSymbolChange = (value: string) => {
     setSelectedSymbol(value);
     form.setFieldsValue({ symbol: value });
+  };
+
+  // 处理UID选择
+  const handleUidChange = (value: string) => {
+    setSelectedUid(value);
   };
 
   // 处理下单
@@ -277,10 +306,18 @@ const TradePage = () => {
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <Space>
             <Select
+              value={selectedUid}
+              onChange={handleUidChange}
+              options={uidOptions}
+              style={{ width: 150 }}
+              placeholder="选择UID"
+            />
+            <Select
               value={selectedSymbol}
               onChange={handleSymbolChange}
               options={symbolOptions}
               style={{ width: 150 }}
+              placeholder="选择交易对"
             />
           </Space>
           <Spin spinning={loading}>
@@ -289,7 +326,13 @@ const TradePage = () => {
                 columns={orderColumns}
                 dataSource={orderData}
                 scroll={{ x: 1500 }}
-                pagination={false}
+                pagination={{
+                  total: orderData.length,
+                  pageSize: 10,
+                  showSizeChanger: true,
+                  showQuickJumper: true,
+                  showTotal: (total) => `共 ${total} 条记录`,
+                }}
                 bordered
                 size="middle"
                 rowKey="id"
