@@ -6,43 +6,64 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   DashboardOutlined,
-  UserOutlined,
-  BarChartOutlined,
+  AccountBookOutlined,
+  LineChartOutlined,
   AlertOutlined,
+  SwapOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons';
 
-const menuItems = [
+interface MenuItem {
+  key: string;
+  icon: React.ReactNode;
+  label: React.ReactNode;
+}
+
+const items: MenuItem[] = [
   {
-    key: '/dashboard',
+    key: '/',
     icon: <DashboardOutlined />,
-    label: <Link href="/dashboard">实时监控大盘</Link>,
+    label: <Link href="/">总览</Link>,
   },
   {
     key: '/account',
-    icon: <UserOutlined />,
+    icon: <AccountBookOutlined />,
     label: <Link href="/account">账户管理</Link>,
   },
   {
+    key: '/trade',
+    icon: <SwapOutlined />,
+    label: <Link href="/trade">交易管理</Link>,
+  },
+  {
+    key: '/trades',
+    icon: <HistoryOutlined />,
+    label: <Link href="/trades">成交记录</Link>,
+  },
+  {
     key: '/report',
-    icon: <BarChartOutlined />,
-    label: <Link href="/report">报表分析</Link>,
+    icon: <LineChartOutlined />,
+    label: <Link href="/report">报表管理</Link>,
   },
   {
     key: '/alert',
     icon: <AlertOutlined />,
-    label: <Link href="/alert">告警配置</Link>,
+    label: <Link href="/alert">预警管理</Link>,
   },
 ];
 
-export default function SideMenu() {
+const SideMenu: React.FC = () => {
   const pathname = usePathname();
 
   return (
     <Menu
+      theme="dark"
       mode="inline"
       selectedKeys={[pathname]}
       style={{ height: '100%', borderRight: 0 }}
-      items={menuItems}
+      items={items}
     />
   );
-} 
+};
+
+export default SideMenu; 

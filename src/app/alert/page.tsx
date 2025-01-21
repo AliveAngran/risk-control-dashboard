@@ -1,209 +1,260 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Card, Row, Col, Table, Button, Tag, Statistic } from 'antd';
-import ReactECharts from 'echarts-for-react';
-import dayjs from 'dayjs';
+import { Card, Table, Tabs, Typography, Space, Tag, Button, Form, Input, InputNumber, Select, Alert } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 
-// 模拟数据
-const ruleColumns = [
-  { title: '币对', dataIndex: 'pair', key: 'pair' },
-  { title: '阈值(USDT)', dataIndex: 'threshold', key: 'threshold' },
-  { title: '监控周期', dataIndex: 'interval', key: 'interval' },
-  { title: '通知方式', dataIndex: 'notifyType', key: 'notifyType' },
-  {
-    title: '状态',
-    dataIndex: 'status',
-    key: 'status',
-    render: (status: string) => (
-      <Tag color={status === '启用' ? 'green' : 'red'}>{status}</Tag>
-    ),
-  },
-  { title: '最近告警', dataIndex: 'lastAlert', key: 'lastAlert' },
-  {
-    title: '操作',
-    key: 'action',
-    render: () => (
-      <>
-        <Button type="link">编辑</Button>
-        <Button type="link" danger>
-          删除
-        </Button>
-      </>
-    ),
-  },
-];
+const { Title } = Typography;
+const { Option } = Select;
 
-const mockRuleData = [
-  {
-    key: '1',
-    pair: 'BTC/USDT',
-    threshold: '1000',
-    interval: '3s',
-    notifyType: 'Lark',
-    status: '启用',
-    lastAlert: '15:28:30',
-  },
-  {
-    key: '2',
-    pair: 'ETH/USDT',
-    threshold: '500',
-    interval: '3s',
-    notifyType: 'Lark',
-    status: '启用',
-    lastAlert: '15:25:45',
-  },
-];
+interface AlertConfig {
+  id: string;
+  pair: string;
+  pnlLimit: number;
+  noticeType: string;
+  status: string;
+}
 
-const historyColumns = [
-  { title: '时间', dataIndex: 'time', key: 'time' },
-  { title: '币对', dataIndex: 'pair', key: 'pair' },
-  { title: '触发值', dataIndex: 'triggerValue', key: 'triggerValue' },
-  { title: '阈值', dataIndex: 'threshold', key: 'threshold' },
-  {
-    title: '状态',
-    dataIndex: 'status',
-    key: 'status',
-    render: (status: string) => (
-      <Tag color={status === '已处理' ? 'green' : status === '处理中' ? 'orange' : 'red'}>
-        {status}
-      </Tag>
-    ),
-  },
-  { title: '处理人', dataIndex: 'handler', key: 'handler' },
-  { title: '处理时间', dataIndex: 'handleTime', key: 'handleTime' },
-  { title: '备注', dataIndex: 'remark', key: 'remark' },
-];
+interface AlertHistory {
+  id: string;
+  pair: string;
+  type: string;
+  message: string;
+  time: number;
+  status: string;
+}
 
-const mockHistoryData = [
-  {
-    key: '1',
-    time: '15:28:30',
-    pair: 'BTC/USDT',
-    triggerValue: '1234.56',
-    threshold: '1000',
-    status: '已处理',
-    handler: '张三',
-    handleTime: '15:29:00',
-    remark: '风险解除',
-  },
-  {
-    key: '2',
-    time: '15:25:45',
-    pair: 'ETH/USDT',
-    triggerValue: '678.90',
-    threshold: '500',
-    status: '处理中',
-    handler: '李四',
-    handleTime: '-',
-    remark: '处理中',
-  },
-];
+const AlertPage = () => {
+  const [activeTab, setActiveTab] = useState('config');
+  const [form] = Form.useForm();
 
-export default function AlertConfig() {
-  const [distributionChartOption] = useState({
-    title: {
-      text: '告警统计分析',
+  // 告警配置表格列
+  const configColumns: ColumnsType<AlertConfig> = [
+    {
+      title: '交易对',
+      dataIndex: 'pair',
+      key: 'pair',
+      width: 120,
     },
-    tooltip: {
-      trigger: 'item',
+    {
+      title: '盈亏限制(USDT)',
+      dataIndex: 'pnlLimit',
+      key: 'pnlLimit',
+      width: 150,
     },
-    legend: {
-      orient: 'vertical',
-      left: 'left',
+    {
+      title: '通知方式',
+      dataIndex: 'noticeType',
+      key: 'noticeType',
+      width: 120,
+      render: (text: string) => <Tag color="blue">{text}</Tag>,
     },
-    series: [
-      {
-        name: '告警分布',
-        type: 'pie',
-        radius: '50%',
-        data: [
-          { value: 80, name: 'BTC/USDT' },
-          { value: 45, name: 'ETH/USDT' },
-          { value: 25, name: 'DOT/USDT' },
-          { value: 6, name: 'Others' },
-        ],
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.5)',
-          },
-        },
-      },
-    ],
-  });
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status: string) => (
+        <Tag color={status === 'active' ? 'green' : 'red'}>
+          {status === 'active' ? '启用' : '禁用'}
+        </Tag>
+      ),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 200,
+      render: () => (
+        <Space>
+          <Button icon={<EditOutlined />} size="small">编辑</Button>
+          <Button icon={<DeleteOutlined />} size="small" danger>删除</Button>
+        </Space>
+      ),
+    },
+  ];
 
-  const [trendChartOption] = useState({
-    title: {
-      text: '告警触发趋势',
+  // 告警历史表格列
+  const historyColumns: ColumnsType<AlertHistory> = [
+    {
+      title: '交易对',
+      dataIndex: 'pair',
+      key: 'pair',
+      width: 120,
     },
-    tooltip: {
-      trigger: 'axis',
+    {
+      title: '类型',
+      dataIndex: 'type',
+      key: 'type',
+      width: 100,
+      render: (text: string) => (
+        <Tag color={text === 'warning' ? 'gold' : 'red'}>
+          {text === 'warning' ? '警告' : '严重'}
+        </Tag>
+      ),
     },
-    xAxis: {
-      type: 'time',
-      boundaryGap: false,
+    {
+      title: '告警信息',
+      dataIndex: 'message',
+      key: 'message',
+      width: 300,
     },
-    yAxis: {
-      type: 'value',
-      name: '告警次数',
+    {
+      title: '时间',
+      dataIndex: 'time',
+      key: 'time',
+      width: 180,
+      render: (time: number) => new Date(time).toLocaleString(),
     },
-    series: [
-      {
-        name: '告警次数',
-        type: 'line',
-        data: Array.from({ length: 24 }, (_, i) => ({
-          value: [dayjs().subtract(i, 'hour').valueOf(), Math.floor(Math.random() * 10)],
-        })).reverse(),
-        areaStyle: {},
-      },
-    ],
-  });
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status: string) => (
+        <Tag color={status === 'handled' ? 'green' : 'gold'}>
+          {status === 'handled' ? '已处理' : '未处理'}
+        </Tag>
+      ),
+    },
+  ];
+
+  // 模拟数据
+  const mockConfigData: AlertConfig[] = [
+    {
+      id: '1',
+      pair: 'BTC/USDT',
+      pnlLimit: 1000,
+      noticeType: 'Lark',
+      status: 'active',
+    },
+    {
+      id: '2',
+      pair: 'ETH/USDT',
+      pnlLimit: 500,
+      noticeType: 'Lark',
+      status: 'inactive',
+    },
+  ];
+
+  const mockHistoryData: AlertHistory[] = [
+    {
+      id: '1',
+      pair: 'BTC/USDT',
+      type: 'warning',
+      message: '盈亏超过1000 USDT！当前盈亏：-1234.56 USDT',
+      time: Date.now(),
+      status: 'unhandled',
+    },
+    {
+      id: '2',
+      pair: 'ETH/USDT',
+      type: 'critical',
+      message: '盈亏超过2000 USDT！当前盈亏：-2345.67 USDT',
+      time: Date.now() - 3600000,
+      status: 'handled',
+    },
+  ];
+
+  const tabItems = [
+    {
+      key: 'config',
+      label: '告警配置',
+      children: (
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Alert
+            message="提示"
+            description="当币对盈亏超过设定阈值时，系统将通过配置的通知方式发送告警信息。"
+            type="info"
+            showIcon
+          />
+          <Card>
+            <Form
+              form={form}
+              layout="inline"
+              style={{ marginBottom: 16 }}
+            >
+              <Form.Item
+                name="pair"
+                label="交易对"
+                rules={[{ required: true }]}
+              >
+                <Select style={{ width: 120 }}>
+                  <Option value="BTC/USDT">BTC/USDT</Option>
+                  <Option value="ETH/USDT">ETH/USDT</Option>
+                </Select>
+              </Form.Item>
+              <Form.Item
+                name="pnlLimit"
+                label="盈亏限制"
+                rules={[{ required: true }]}
+              >
+                <InputNumber
+                  style={{ width: 150 }}
+                  min={0}
+                  step={100}
+                  addonAfter="USDT"
+                />
+              </Form.Item>
+              <Form.Item
+                name="noticeType"
+                label="通知方式"
+                rules={[{ required: true }]}
+              >
+                <Select style={{ width: 120 }}>
+                  <Option value="Lark">Lark</Option>
+                </Select>
+              </Form.Item>
+              <Form.Item>
+                <Button type="primary" icon={<PlusOutlined />}>
+                  添加配置
+                </Button>
+              </Form.Item>
+            </Form>
+            <Table
+              columns={configColumns}
+              dataSource={mockConfigData}
+              pagination={false}
+              bordered
+              size="middle"
+              rowKey="id"
+            />
+          </Card>
+        </Space>
+      ),
+    },
+    {
+      key: 'history',
+      label: '告警历史',
+      children: (
+        <Table
+          columns={historyColumns}
+          dataSource={mockHistoryData}
+          pagination={{
+            total: 100,
+            pageSize: 10,
+            showSizeChanger: true,
+            showQuickJumper: true,
+          }}
+          bordered
+          size="middle"
+          rowKey="id"
+        />
+      ),
+    },
+  ];
 
   return (
-    <div>
-      <Row gutter={16}>
-        <Col span={8}>
-          <Card>
-            <Statistic title="今日告警总数" value={156} />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card>
-            <Statistic title="待处理告警" value={23} />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card>
-            <Statistic title="已处理告警" value={133} />
-          </Card>
-        </Col>
-      </Row>
-
-      <Card style={{ marginTop: 16 }}>
-        <div style={{ marginBottom: 16, textAlign: 'right' }}>
-          <Button type="primary">新增规则</Button>
-        </div>
-        <Table columns={ruleColumns} dataSource={mockRuleData} />
-      </Card>
-
-      <Row gutter={16} style={{ marginTop: 16 }}>
-        <Col span={12}>
-          <Card>
-            <ReactECharts option={distributionChartOption} style={{ height: '400px' }} />
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card>
-            <ReactECharts option={trendChartOption} style={{ height: '400px' }} />
-          </Card>
-        </Col>
-      </Row>
-
-      <Card style={{ marginTop: 16 }} title="告警历史记录">
-        <Table columns={historyColumns} dataSource={mockHistoryData} />
-      </Card>
-    </div>
+    <Card>
+      <Title level={4}>告警管理</Title>
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={tabItems}
+        type="card"
+      />
+    </Card>
   );
-} 
+};
+
+export default AlertPage; 

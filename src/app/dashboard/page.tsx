@@ -1,269 +1,458 @@
 'use client';
 
-import React from 'react';
-import { Card, Row, Col, Table, Tabs, Radio, Space } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Card, Table, Row, Col, Typography, Badge, Space, Select, Statistic, Empty, Spin } from 'antd';
+import { Area, Pie } from '@ant-design/charts';
+import type { ColumnsType } from 'antd/es/table';
 import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
-import ReactECharts from 'echarts-for-react';
-import dayjs from 'dayjs';
+import OrderBook from '@/components/OrderBook';
+import FeeCalculator from '@/components/FeeCalculator';
 
-// 模拟数据
-const mockData = {
-  makerBalance: 123456789.12,
-  makerChange: 1.23,
-  takerBalance: 987654321.98,
-  takerChange: -0.45,
-  totalPnL: 123456.78,
-  totalPnLChange: 0.78,
-};
+const { Title } = Typography;
+const { Option } = Select;
 
-// 实时成交数据
-const tradeColumns = [
-  { title: '时间', dataIndex: 'time', key: 'time' },
-  { title: 'UID', dataIndex: 'uid', key: 'uid' },
-  { title: '币对', dataIndex: 'pair', key: 'pair' },
-  { title: '方向', dataIndex: 'direction', key: 'direction' },
-  { title: '价格', dataIndex: 'price', key: 'price' },
-  { title: '数量', dataIndex: 'amount', key: 'amount' },
-  { title: '成交额', dataIndex: 'total', key: 'total' },
-];
-
-const mockTradeData = [
-  {
-    key: '1',
-    time: '15:30:42',
-    uid: '123456',
-    pair: 'BTC/USDT',
-    direction: '买入',
-    price: '45000',
-    amount: '0.1234',
-    total: '5550.3',
-  },
-  {
-    key: '2',
-    time: '15:30:38',
-    uid: '123457',
-    pair: 'ETH/USDT',
-    direction: '卖出',
-    price: '2800',
-    amount: '1.5678',
-    total: '4389.8',
-  },
-];
-
-// 告警信息
-const mockAlerts = [
-  {
-    level: '严重',
-    pair: 'BTC/USDT',
-    time: '15:28:30',
-    detail: '盈亏-1500 USDT'
-  },
-  {
-    level: '警告',
-    pair: 'ETH/USDT', 
-    time: '15:25:45',
-    detail: '盈亏-800 USDT'
-  }
-];
-
-export default function Dashboard() {
-  const pnlChartOption = {
-    title: {
-      text: '币对实时盈亏监控',
-    },
-    tooltip: {
-      trigger: 'axis',
-    },
-    legend: {
-      data: ['Maker', 'Taker'],
-    },
-    xAxis: {
-      type: 'time',
-      boundaryGap: false,
-    },
-    yAxis: {
-      type: 'value',
-      name: '盈亏(USDT)',
-    },
-    series: [
-      {
-        name: 'Maker',
-        type: 'line',
-        data: Array.from({ length: 20 }, (_, i) => ({
-          value: [
-            dayjs().subtract(i * 3, 'second').valueOf(),
-            Math.random() * 1000,
-          ],
-        })).reverse(),
-      },
-      {
-        name: 'Taker',
-        type: 'line',
-        data: Array.from({ length: 20 }, (_, i) => ({
-          value: [
-            dayjs().subtract(i * 3, 'second').valueOf(),
-            Math.random() * 1000,
-          ],
-        })).reverse(),
-      },
-    ],
+interface ChartEvent {
+  data: {
+    data: AssetDistribution;
   };
+}
 
-  const balanceChartOption = {
-    title: {
-      text: '账户组余额分布',
+interface PlotInstance {
+  on: (eventName: string, callback: (e: ChartEvent) => void) => void;
+}
+
+interface PnLData {
+  assets: string;
+  makerBalance: string;
+  makerNetIn: string;
+  takerBalance: string;
+  takerNetIn: string;
+  diff: string;
+  price: string;
+  pnl: string;
+}
+
+interface ChartData {
+  time: string;
+  value: number;
+  type: string;
+}
+
+interface AssetDistribution {
+  type: string;
+  value: number;
+}
+
+const DashboardPage = () => {
+  const [selectedSymbol, setSelectedSymbol] = useState('BTC/USDT');
+  const [pnlData, setPnlData] = useState<PnLData[]>([]);
+  const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [assetDistribution, setAssetDistribution] = useState<AssetDistribution[]>([]);
+
+  // 表格列配置
+  const columns: ColumnsType<PnLData> = [
+    {
+      title: '币种资产',
+      dataIndex: 'assets',
+      key: 'assets',
+      fixed: 'left',
+      width: 100,
     },
-    tooltip: {
-      trigger: 'item',
+    {
+      title: 'Maker',
+      children: [
+        {
+          title: '余额',
+          dataIndex: 'makerBalance',
+          key: 'makerBalance',
+          width: 150,
+        },
+        {
+          title: '净流入',
+          dataIndex: 'makerNetIn',
+          key: 'makerNetIn',
+          width: 150,
+        },
+      ],
     },
-    legend: {
-      orient: 'vertical',
-      left: 'left',
+    {
+      title: 'Taker',
+      children: [
+        {
+          title: '余额',
+          dataIndex: 'takerBalance',
+          key: 'takerBalance',
+          width: 150,
+        },
+        {
+          title: '净流入',
+          dataIndex: 'takerNetIn',
+          key: 'takerNetIn',
+          width: 150,
+        },
+      ],
     },
-    series: [
-      {
-        name: '余额分布',
-        type: 'pie',
-        radius: '50%',
-        data: [
-          { value: 735, name: 'BTC' },
-          { value: 580, name: 'ETH' },
-          { value: 484, name: 'USDT' },
-          { value: 300, name: 'Others' },
-        ],
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.5)',
+    {
+      title: '差值',
+      dataIndex: 'diff',
+      key: 'diff',
+      width: 150,
+      render: (text: string) => {
+        const value = parseFloat(text);
+        return (
+          <span style={{ color: value >= 0 ? '#52c41a' : '#ff4d4f' }}>
+            {text}
+          </span>
+        );
+      },
+    },
+    {
+      title: '价格',
+      dataIndex: 'price',
+      key: 'price',
+      width: 150,
+    },
+    {
+      title: '盈亏',
+      dataIndex: 'pnl',
+      key: 'pnl',
+      width: 150,
+      render: (text: string) => {
+        const value = parseFloat(text);
+        return (
+          <span style={{ color: value >= 0 ? '#52c41a' : '#ff4d4f' }}>
+            {text}
+          </span>
+        );
+      },
+    },
+  ];
+
+  // 模拟数据更新
+  useEffect(() => {
+    const generateData = () => {
+      setLoading(true);
+      
+      // 模拟PnL数据
+      const mockData = [
+        {
+          assets: 'BTC',
+          makerBalance: '1.2345',
+          makerNetIn: '0.5000',
+          takerBalance: '1.3456',
+          takerNetIn: '0.6000',
+          diff: '-0.0889',
+          price: '42000.00',
+          pnl: '-3733.80',
+        },
+        {
+          assets: 'ETH',
+          makerBalance: '10.2345',
+          makerNetIn: '5.0000',
+          takerBalance: '11.3456',
+          takerNetIn: '6.0000',
+          diff: '-0.8889',
+          price: '2500.00',
+          pnl: '-2222.25',
+        },
+      ];
+
+      // 模拟图表数据
+      const mockChartData = Array.from({ length: 24 }, (_, i) => ({
+        time: `${i}:00`,
+        value: Math.random() * 2000 - 1000,
+        type: 'PnL',
+      }));
+
+      // 模拟资产分布数据
+      const mockAssetDistribution = [
+        { type: 'BTC', value: 45 },
+        { type: 'ETH', value: 25 },
+        { type: 'USDT', value: 20 },
+        { type: 'Others', value: 10 },
+      ];
+
+      setPnlData(mockData);
+      setChartData(mockChartData);
+      setAssetDistribution(mockAssetDistribution);
+      setLoading(false);
+    };
+
+    generateData();
+    const timer = setInterval(generateData, 3000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const areaConfig = {
+    data: chartData,
+    xField: 'time',
+    yField: 'value',
+    seriesField: 'type',
+    smooth: true,
+    autoFit: true,
+    color: '#1890ff',
+    xAxis: {
+      label: {
+        style: {
+          fill: '#ffffff',
+        },
+      },
+      line: {
+        style: {
+          stroke: '#303030',
+        },
+      },
+      grid: {
+        line: {
+          style: {
+            stroke: '#303030',
           },
         },
       },
+    },
+    yAxis: {
+      label: {
+        style: {
+          fill: '#ffffff',
+        },
+      },
+      grid: {
+        line: {
+          style: {
+            stroke: '#303030',
+          },
+        },
+      },
+    },
+    legend: {
+      itemName: {
+        style: {
+          fill: '#ffffff',
+        },
+      },
+    },
+    tooltip: {
+      domStyles: {
+        'g2-tooltip': {
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          color: '#ffffff',
+          boxShadow: '0px 2px 8px rgba(0,0,0,0.15)',
+        },
+      },
+    },
+    slider: {
+      handlerStyle: {
+        fill: '#ffffff',
+        stroke: '#1890ff',
+      },
+      backgroundStyle: {
+        fill: '#262626',
+      },
+      foregroundStyle: {
+        fill: '#1890ff',
+        fillOpacity: 0.2,
+      },
+      textStyle: {
+        fill: '#ffffff',
+      },
+    },
+  };
+
+  const pieConfig = {
+    data: assetDistribution,
+    angleField: 'value',
+    colorField: 'type',
+    radius: 0.8,
+    label: {
+      type: 'outer',
+      content: '{name} {percentage}',
+      style: {
+        fill: '#ffffff',
+        fontSize: 14,
+      },
+    },
+    legend: {
+      itemName: {
+        style: {
+          fill: '#ffffff',
+          fontSize: 14,
+        },
+      },
+    },
+    tooltip: {
+      domStyles: {
+        'g2-tooltip': {
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          color: '#ffffff',
+          boxShadow: '0px 2px 8px rgba(0,0,0,0.15)',
+        },
+      },
+    },
+    statistic: {
+      title: {
+        style: {
+          color: '#ffffff',
+        },
+      },
+      content: {
+        style: {
+          color: '#ffffff',
+        },
+      },
+    },
+    interactions: [
+      {
+        type: 'element-active',
+      },
+      {
+        type: 'pie-statistic-active',
+      }
     ],
+    state: {
+      active: {
+        style: {
+          lineWidth: 0,
+          fillOpacity: 0.9,
+        },
+      },
+    },
+    onReady: (plot: unknown) => {
+      if (plot && typeof plot === 'object' && 'on' in plot) {
+        (plot as PlotInstance).on('element:click', (e: ChartEvent) => {
+          const { data } = e.data;
+          if (data.type === 'BTC') {
+            setSelectedSymbol('BTC/USDT');
+          } else if (data.type === 'ETH') {
+            setSelectedSymbol('ETH/USDT');
+          }
+        });
+      }
+    },
   };
 
   return (
-    <div className="p-6">
-      {/* 页面标题 */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">实时监控大盘</h1>
-        <div className="text-gray-500">
-          {dayjs().format('YYYY-MM-DD HH:mm:ss')} 刷新间隔: 3s
-        </div>
-      </div>
-
-      {/* 顶部卡片 */}
-      <Row gutter={16}>
-        <Col span={8}>
+    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Row gutter={[16, 16]}>
+        <Col span={6}>
           <Card>
-            <div>Maker账户组</div>
-            <div className="text-2xl font-bold mt-2">
-              {mockData.makerBalance.toLocaleString()} USDT
-            </div>
-            <div className={mockData.makerChange > 0 ? 'text-green-500' : 'text-red-500'}>
-              {mockData.makerChange > 0 ? '+' : ''}
-              {mockData.makerChange}%
-              {mockData.makerChange > 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-            </div>
+            <Statistic
+              title="总资产 (USDT)"
+              value={158934.56}
+              precision={2}
+              valueStyle={{ color: '#3f8600' }}
+              prefix={<ArrowUpOutlined />}
+              suffix="USDT"
+            />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={6}>
           <Card>
-            <div>Taker账户组</div>
-            <div className="text-2xl font-bold mt-2">
-              {mockData.takerBalance.toLocaleString()} USDT
-            </div>
-            <div className={mockData.takerChange > 0 ? 'text-green-500' : 'text-red-500'}>
-              {mockData.takerChange > 0 ? '+' : ''}
-              {mockData.takerChange}%
-              {mockData.takerChange > 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-            </div>
+            <Statistic
+              title="24h成交量"
+              value={256.78}
+              precision={2}
+              valueStyle={{ color: '#cf1322' }}
+              prefix={<ArrowDownOutlined />}
+              suffix="BTC"
+            />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={6}>
           <Card>
-            <div>整体盈亏</div>
-            <div className="text-2xl font-bold mt-2">
-              {mockData.totalPnL > 0 ? '+' : ''}
-              {mockData.totalPnL.toLocaleString()} USDT
-            </div>
-            <div className={mockData.totalPnLChange > 0 ? 'text-green-500' : 'text-red-500'}>
-              {mockData.totalPnLChange > 0 ? '+' : ''}
-              {mockData.totalPnLChange}%
-              {mockData.totalPnLChange > 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-            </div>
+            <Statistic
+              title="活跃订单数"
+              value={42}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic
+              title="24h盈亏"
+              value={-5956.05}
+              precision={2}
+              valueStyle={{ color: '#ff4d4f' }}
+              prefix={<ArrowDownOutlined />}
+              suffix="USDT"
+            />
           </Card>
         </Col>
       </Row>
 
-      {/* 币对盈亏监控 */}
-      <Card className="mt-6">
-        <div className="mb-4">
-          <Space size="large">
-            <Tabs
-              defaultActiveKey="BTC/USDT"
-              items={[
-                { key: 'BTC/USDT', label: 'BTC/USDT' },
-                { key: 'ETH/USDT', label: 'ETH/USDT' },
-                { key: 'Others', label: '其他币对...' },
-              ]}
-            />
-            <Radio.Group defaultValue="1H">
-              <Radio.Button value="1H">1H</Radio.Button>
-              <Radio.Button value="4H">4H</Radio.Button>
-              <Radio.Button value="24H">24H</Radio.Button>
-            </Radio.Group>
-          </Space>
-        </div>
-        <ReactECharts option={pnlChartOption} style={{ height: '400px' }} />
-      </Card>
-
-      {/* 余额分布和告警信息 */}
-      <Row gutter={16} className="mt-6">
-        <Col span={12}>
+      <Row gutter={[16, 16]}>
+        <Col span={16}>
           <Card>
-            <Tabs
-              defaultActiveKey="maker"
-              items={[
-                { key: 'maker', label: 'Maker' },
-                { key: 'taker', label: 'Taker' },
-              ]}
-            />
-            <ReactECharts option={balanceChartOption} style={{ height: '300px' }} />
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card 
-            title="实时告警信息" 
-            className="h-full"
-          >
-            {mockAlerts.map((alert, index) => (
-              <div 
-                key={index}
-                className={`mb-4 p-4 rounded ${
-                  alert.level === '严重' ? 'bg-red-50' : 'bg-yellow-50'
-                }`}
+            <Space style={{ marginBottom: 16 }}>
+              <span style={{ color: '#fff' }}>选择交易对：</span>
+              <Select 
+                value={selectedSymbol}
+                onChange={setSelectedSymbol}
+                style={{ width: 120 }}
               >
-                <div className={alert.level === '严重' ? 'text-red-500' : 'text-yellow-500'}>
-                  [{alert.level}] {alert.pair}盈亏超限
-                </div>
-                <div className="text-gray-500 mt-1">时间: {alert.time}</div>
-                <div className="text-gray-500">详情: {alert.detail}</div>
-              </div>
-            ))}
+                <Option value="BTC/USDT">BTC/USDT</Option>
+                <Option value="ETH/USDT">ETH/USDT</Option>
+              </Select>
+            </Space>
+            <Title level={4} style={{ color: '#fff' }}>盈亏趋势</Title>
+            <Area {...areaConfig} height={300} />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card>
+            <Title level={4} style={{ color: '#fff' }}>资产分布</Title>
+            <Pie {...pieConfig} height={300} style={{ color: '#fff' }}/>
           </Card>
         </Col>
       </Row>
 
-      {/* 实时成交流水 */}
-      <Card title="实时成交流水" className="mt-6">
-        <Table 
-          columns={tradeColumns} 
-          dataSource={mockTradeData} 
-          pagination={false}
-          className="border rounded"
-        />
-      </Card>
-    </div>
+      <Row gutter={[16, 16]}>
+        <Col span={24}>
+          <Card>
+            <Title level={4}>
+              实时监控
+              <Badge 
+                count="实时" 
+                style={{ 
+                  backgroundColor: '#52c41a',
+                  marginLeft: 8,
+                }} 
+              />
+            </Title>
+            <Spin spinning={loading}>
+              {pnlData.length > 0 ? (
+                <Table 
+                  columns={columns} 
+                  dataSource={pnlData}
+                  scroll={{ x: 1500 }}
+                  pagination={false}
+                  bordered
+                  size="middle"
+                  rowKey="assets"
+                />
+              ) : (
+                <Empty 
+                  image={Empty.PRESENTED_IMAGE_SIMPLE} 
+                  description="暂无数据"
+                />
+              )}
+            </Spin>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]}>
+        <Col span={12}>
+          <OrderBook symbol={selectedSymbol} depth={10} />
+        </Col>
+        <Col span={12}>
+          <FeeCalculator symbol={selectedSymbol} />
+        </Col>
+      </Row>
+    </Space>
   );
-} 
+};
+
+export default DashboardPage; 
