@@ -2,11 +2,10 @@
 
 import React from 'react';
 import { createCache, extractStyle, StyleProvider } from '@ant-design/cssinjs';
-import type { Cache } from '@ant-design/cssinjs';
 import { useServerInsertedHTML } from 'next/navigation';
 
 const StyledComponentsRegistry = ({ children }: { children: React.ReactNode }) => {
-  const cache = React.useMemo<Cache>(() => createCache(), []);
+  const cache = React.useMemo(() => createCache(), []);
   useServerInsertedHTML(() => (
     <style id="antd" dangerouslySetInnerHTML={{ __html: extractStyle(cache, true) }} />
   ));
